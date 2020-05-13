@@ -381,8 +381,12 @@ function inspect(
   return inspectedObject;
 }
 
-function analyze(thing: unknown) {
-  return inspect(thing, null, 'root', '$');
+type AnalyzedObject = ReturnType<typeof inspect>;
+function analyze(thing: unknown): AnalyzedObject {
+  return inspect(
+    (typeof thing === 'string') ? JSON.parse(JSON.stringify(thing)) : thing, 
+    null, 'root', '$'
+  );
 }
 
 export default analyze;
@@ -397,4 +401,5 @@ export {
   ValuesByType,
   JsonTypeStr,
   ArrayMember,
+  AnalyzedObject,
 };

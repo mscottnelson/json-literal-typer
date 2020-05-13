@@ -88,10 +88,13 @@ function jsonify(thingObject: PrimitiveObject | ArrayObject | ObjectObject) {
 
     return numberJson;
   } else if (thingObject.type === 'string') {
+    const values = [...thingObject.values].map((s)=>{
+      return s.includes("\\") ? JSON.stringify(s) : s;
+    });
     const stringJson: StringJson = {
       type: thingObject.type,
       path: thingObject.path,
-      values: [...thingObject.values],
+      values,
     };
 
     return stringJson;

@@ -3,13 +3,13 @@ import ts from 'typescript';
 import { writeFile, PathLike, exists, mkdir } from 'fs';
 import rimraf from 'rimraf';
 import { promisify, inspect } from 'util';
-import { normalize } from 'path';
+import * as path from 'path';
 const existsP = promisify(exists);
 const mkdirP = promisify(mkdir);
 const rimrafP = promisify(rimraf);
 const writeFileP = promisify(writeFile);
 
-const testData = [
+const objectTestData = [
   {
     name: 'plain string',
     in: 'str',
@@ -59,6 +59,26 @@ const testData = [
       },
     },
     tsOut: 'interface Root {\n  a: 1;\n}',
+  },
+  {
+    name: 'object with quotes in key',
+    in: { 'with"': 1 },
+    jsonOut: {
+      type: 'object',
+      path: '$',
+      keys: {
+        'with"': {
+          values: [
+            {
+              type: 'number',
+              path: `$['with"']{number}`,
+              values: [1],
+            },
+          ],
+        },
+      },
+    },
+    tsOut: `interface Root {\n  "with\\"": 1;\n}`,
   },
   {
     name: 'object with spaces in key',
@@ -557,7 +577,9 @@ async function compile(
   label: string,
   options: ts.CompilerOptions,
 ) {
-  const fileName: PathLike = normalize(`${options.outDir}/temp-${label}.ts`);
+  const fileName: PathLike = path.normalize(
+    `${options.outDir}/temp-${label}.ts`,
+  );
 
   await writeFileP(fileName, tsString);
 
@@ -608,54 +630,79 @@ const tsOptions = {
   noImplicitReturns: true,
 };
 
+const formatOpts = {
+  colors: false,
+  maxArrayLength: Infinity,
+  breakLength: 80,
+  depth: Infinity,
+};
+
 beforeAll(async () => {
-  const outTs = normalize(tsOptions.outDir);
+  const outTs = path.normalize(tsOptions.outDir);
   if (await existsP(outTs)) {
     await rimrafP(outTs);
   }
   mkdirP(outTs);
 });
 
-testData.forEach(data => {
-  const analyzed = analyze(data.in);
-  const jsonified = jsonify(analyzed);
-  const typified = typify(analyzed, data.config);
+describe('Handle JS/TS Objects', () => {
+  objectTestData.forEach(data => {
+    const analyzed = analyze(data.in);
+    const jsonified = jsonify(analyzed);
+    const typified = typify(analyzed, data.config);
 
-  it('should get expected json output for: ' + data.name, () => {
-    expect(jsonified).toEqual(data.jsonOut);
+    it('should get expected json output for: ' + data.name, () => {
+      expect(jsonified).toEqual(data.jsonOut);
+    });
+
+    it('should get expected typescript for: ' + data.name, () => {
+      expect(typified).toEqual(data.tsOut);
+    });
+
+    it('should produce compilable typescript for: ' + data.name, async () => {
+      let str: string;
+      switch (jsonified.type) {
+        case 'string':
+          str = `${typified}\nconst i: Root = "${data.in}"`;
+          break;
+        case 'object':
+          str = `${typified}\nconst i: Root = ${inspect(data.in, formatOpts)}`;
+          break;
+        case 'array':
+          str = [...jsonified.values].length
+            ? `${typified}\nconst i: Root = ${inspect(data.in, formatOpts)}`
+            : `${typified}`;
+          break;
+        default:
+          str = `${typified}\nconst i: Root = ${data.in}`;
+          break;
+      }
+      const compiled = await compile(
+        str,
+        data.name.replace(/\s/gi, '_'),
+        tsOptions,
+      );
+      expect(compiled).toBeTruthy();
+    });
+  });
+});
+describe('Handle JSON strings containing escape sequences', () => {
+  const escapedSequence = String.raw`<\\d+>(\\w+ \\d{2} \\d{2}:\\d{2}:\\d{2}).*`;
+  const rawString = String.raw`{"timeStampRegex": "${escapedSequence}"}`;
+  const analyzed = analyze(rawString);
+  // const jsonified = jsonify(analyzed);
+  const typified = typify(analyzed);
+
+  it('should get expected typescript output', () => {
+    expect(inspect(typified).slice(1,-1)).toEqual(
+      String.raw`interface Root {\n  timeStampRegex: "${escapedSequence}";\n}`,
+    );
   });
 
-  it('should get expected typescript for: ' + data.name, () => {
-    expect(typified).toEqual(data.tsOut);
-  });
-
-  it('should produce compileable typescript for: ' + data.name, async () => {
-    const formatOpts = {
-      colors: false,
-      maxArrayLength: Infinity,
-      breakLength: 80,
-      depth: Infinity,
-    };
-    let str: string;
-    switch (jsonified.type) {
-      case 'string':
-        str = `${typified}\nconst i: Root = "${data.in}"`;
-        break;
-      case 'object':
-        str = `${typified}\nconst i: Root = ${inspect(data.in, formatOpts)}`;
-        break;
-      case 'array':
-        str = [...jsonified.values].length
-          ? `${typified}\nconst i: Root = ${inspect(data.in, formatOpts)}`
-          : `${typified}`;
-        break;
-      default:
-        str = `${typified}\nconst i: Root = ${data.in}`;
-        break;
-    }
+  it('should produce compilable typescript', async () => {
     const compiled = await compile(
-      str,
-      data.name.replace(/\s/gi, '_'),
+      inspect(typified).slice(1,-1),
+      'json-string_with_escape_sequences',
       tsOptions,
     );
     expect(compiled).toBeTruthy();

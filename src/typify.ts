@@ -236,7 +236,7 @@ function typifyString({ thing, nodes, ids, config }: TypifyStringArgs) {
     ? thing.type
     : Array.from(thing.values)
         .sort()
-        .map(str => `"${str.replace(/"/g, '\\"')}"`)
+        .map(str => str.includes(`\\`) ? `"${str}"` : `"${str.replace(/"/g, '\\"')}"`) //this is pretty clearly not the right fix for escaped strings...
         .join(' | ');
 
   if (!forceType) {
@@ -351,7 +351,7 @@ function formatKeyname(keyname: string) {
   try {
     eval(`obj.${keyname}`);
   } catch (err) {
-    return `"${keyname}"`;
+    return JSON.stringify(keyname);
   }
   return keyname;
 }
