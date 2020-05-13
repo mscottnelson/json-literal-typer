@@ -1,7 +1,7 @@
 type JsonPrimitive = boolean | null | number | string;
 type JsonArray = unknown[];
 type JsonObject = Record<string, unknown>;
-type JsonTypeStr =
+export type JsonTypeStr =
   | 'string'
   | 'number'
   | 'boolean'
@@ -11,7 +11,7 @@ type JsonTypeStr =
 
 const arrayMember = Symbol('array member');
 
-type ArrayMember = typeof arrayMember;
+export type ArrayMember = typeof arrayMember;
 
 interface TypeObject {
   readonly type: JsonTypeStr;
@@ -20,28 +20,32 @@ interface TypeObject {
   readonly path: string;
 }
 
-interface StringObject extends TypeObject {
+export interface StringObject extends TypeObject {
   readonly type: 'string';
   readonly values: Set<string>;
 }
 
-interface NumberObject extends TypeObject {
+export interface NumberObject extends TypeObject {
   readonly type: 'number';
   readonly values: Set<number>;
 }
 
-interface BooleanObject extends TypeObject {
+export interface BooleanObject extends TypeObject {
   readonly type: 'boolean';
   readonly values: Set<boolean>;
 }
 
-interface NullObject extends TypeObject {
+export interface NullObject extends TypeObject {
   readonly type: 'null';
 }
 
-type PrimitiveObject = StringObject | NumberObject | BooleanObject | NullObject;
+export type PrimitiveObject =
+  | StringObject
+  | NumberObject
+  | BooleanObject
+  | NullObject;
 
-interface ValuesByType {
+export interface ValuesByType {
   string?: StringObject;
   number?: NumberObject;
   boolean?: BooleanObject;
@@ -50,12 +54,12 @@ interface ValuesByType {
   object?: ObjectObject;
 }
 
-interface ArrayObject extends TypeObject {
+export interface ArrayObject extends TypeObject {
   readonly type: 'array';
   readonly values: ValuesByType;
 }
 
-interface ObjectObject extends TypeObject {
+export interface ObjectObject extends TypeObject {
   readonly type: 'object';
   readonly keys: {
     [key: string]: {
@@ -110,10 +114,10 @@ function getObjectFromParent(
 
   if (parent.type === 'array') {
     return parent.values[typeName]
-      ? (parent.values[typeName] as (
+      ? (parent.values[typeName] as
           | PrimitiveObject
           | ArrayObject
-          | ObjectObject))
+          | ObjectObject)
       : null;
   }
 
@@ -341,11 +345,15 @@ function markOptional(
 
     Object.entries(thing).forEach(([childKey, childThing]) => {
       if (isArray(childThing)) {
-        markOptional(childThing, inspectedObject.keys[childKey].values
-          .array as ArrayObject);
+        markOptional(
+          childThing,
+          inspectedObject.keys[childKey].values.array as ArrayObject,
+        );
       } else if (isObject(childThing)) {
-        markOptional(childThing, inspectedObject.keys[childKey].values
-          .object as ObjectObject);
+        markOptional(
+          childThing,
+          inspectedObject.keys[childKey].values.object as ObjectObject,
+        );
       }
     });
   }
@@ -381,7 +389,7 @@ function inspect(
   return inspectedObject;
 }
 
-type AnalyzedObject = ReturnType<typeof inspect>;
+export type AnalyzedObject = ReturnType<typeof inspect>;
 function analyze(thing: unknown): AnalyzedObject {
   return inspect(
     (typeof thing === 'string') ? JSON.parse(JSON.stringify(thing)) : thing, 
@@ -390,16 +398,3 @@ function analyze(thing: unknown): AnalyzedObject {
 }
 
 export default analyze;
-export {
-  NullObject,
-  BooleanObject,
-  StringObject,
-  NumberObject,
-  PrimitiveObject,
-  ArrayObject,
-  ObjectObject,
-  ValuesByType,
-  JsonTypeStr,
-  ArrayMember,
-  AnalyzedObject,
-};
